@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PP-OCRv6 Local Studio · Deployment Guide</title>
+<style>
+:root{
+  --bg:#0a0a0c; --surface-1:#101015; --surface-2:#16161d; --surface-3:#1c1c25;
+  --border:#25252e; --border-strong:#33333f;
+  --text:#e8e9ed; --text-muted:#8c8f9a; --text-dim:#555864;
+  --accent:#7c5cff; --accent-soft:rgba(124,92,255,.12);
+  --success:#4ade80; --warning:#fbbf24; --danger:#f87171;
+  --success-soft:rgba(74,222,128,.12); --warning-soft:rgba(251,191,36,.12);
+  --code-bg:#0d0d12;
+  --font-sans:-apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text",
+              "Segoe UI", "PingFang SC", sans-serif;
+  --font-mono:"SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+  --radius:6px; --radius-lg:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);
+     font-size:14px;line-height:1.75; -webkit-font-smoothing:antialiased;}
+
+.page{max-width:780px;margin:0 auto;padding:48px 28px 100px}
+
+/* Hero */
+.hero{margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1.25;margin-bottom:10px}
+.hero p{color:var(--text-muted);font-size:14px;max-width:560px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:18px}
+.badge{padding:3px 10px;border-radius:12px;font-size:11px;
+       border:1px solid var(--border);background:var(--surface-2);
+       color:var(--text-muted);font-family:var(--font-mono);letter-spacing:.3px}
+.badge.green{color:var(--success);border-color:rgba(74,222,128,.2)}
+.badge.purple{color:var(--accent);border-color:var(--accent-soft)}
+
+/* Nav pills */
+.toc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:32px;
+     padding-bottom:18px;border-bottom:1px solid var(--border)}
+.toc a{padding:4px 11px;border:1px solid var(--border);border-radius:14px;
+       font-size:11.5px;color:var(--text-muted);font-family:var(--font-mono);
+       text-decoration:none;transition:all .15s}
+.toc a:hover{color:var(--accent);border-color:var(--accent-soft)}
+
+/* Sections */
+h2{font-size:18px;font-weight:600;margin:42px 0 14px;letter-spacing:-.2px;
+   padding-bottom:10px;border-bottom:1px solid var(--border);
+   display:flex;align-items:center;gap:12px}
+h2 .num{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);
+        color:var(--accent);font-size:11px;display:flex;align-items:center;
+        justify-content:center;flex-shrink:0;font-family:var(--font-mono);font-weight:700}
+h3{font-size:14px;font-weight:600;margin:22px 0 10px;color:var(--text)}
+p{margin-bottom:12px;color:var(--text)}
+p.muted{color:var(--text-muted);font-size:13px}
+
+/* Code blocks */
+pre{background:var(--code-bg);border:1px solid var(--border);
+    border-radius:var(--radius);padding:14px 16px;overflow-x:auto;
+    margin:12px 0;position:relative}
+code{font-family:var(--font-mono);font-size:12.5px;line-height:1.75;color:#d4d6e0}
+p code,li code{background:var(--surface-2);padding:1px 6px;border-radius:3px;
+               font-size:12px;color:var(--accent)}
+.copy-pre{position:absolute;top:8px;right:8px;padding:3px 9px;
+          background:var(--surface-3);border:1px solid var(--border);
+          border-radius:4px;color:var(--text-muted);font-size:10.5px;
+          cursor:pointer;font-family:var(--font-mono)}
+.copy-pre:hover{color:var(--text)}
+
+/* Callouts */
+.callout{border-radius:var(--radius);padding:12px 16px;margin:14px 0;
+         font-size:13px;border-left:3px solid;display:flex;gap:10px}
+.callout.info{background:rgba(124,92,255,.06);border-color:var(--accent);color:var(--text)}
+.callout.warn{background:var(--warning-soft);border-color:var(--warning)}
+.callout.tip{background:var(--success-soft);border-color:var(--success)}
+.callout .ico{flex-shrink:0;font-family:var(--font-mono);font-weight:700;
+              color:inherit;font-size:11px;opacity:.7;letter-spacing:.5px;margin-top:1px}
+
+/* Lists */
+ul,ol{padding-left:22px;margin:10px 0}
+li{margin-bottom:6px}
+
+/* File tree */
+.tree{background:var(--code-bg);border:1px solid var(--border);
+      border-radius:var(--radius);padding:14px 18px;font-family:var(--font-mono);
+      font-size:12.5px;line-height:1.95;color:#d4d6e0}
+.tree .d{color:var(--accent)} .tree .f{color:var(--success)} .tree .c{color:var(--text-dim)}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:12.5px}
+th,td{padding:9px 14px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+th{background:var(--surface-1);color:var(--text);font-weight:600;font-size:12px}
+.tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:9px;font-weight:500}
+.tag-yes{background:var(--success-soft);color:var(--success)}
+.tag-no{background:rgba(248,113,113,.1);color:var(--danger)}
+
+/* Endpoint */
+.endpoint{background:var(--surface-1);border:1px solid var(--border);
+          border-radius:var(--radius);padding:10px 14px;margin:10px 0;
+          display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:12.5px}
+.method{padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:700}
+.m-get{background:rgba(74,222,128,.15);color:var(--success)}
+.m-post{background:rgba(124,92,255,.15);color:var(--accent)}
+.m-put{background:rgba(96,165,250,.15);color:#60a5fa}
+.m-del{background:rgba(248,113,113,.15);color:var(--danger)}
+.ep-desc{color:var(--text-muted);font-family:var(--font-sans);font-size:12px;margin-left:auto}
+
+/* Footer */
+hr{border:0;border-top:1px solid var(--border);margin:36px 0}
+footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--border);
+       color:var(--text-muted);font-size:11.5px;line-height:1.9}
+footer a{color:var(--accent);text-decoration:none}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);
+       background:var(--surface-3);border:1px solid var(--border-strong);padding:7px 16px;
+       border-radius:5px;font-size:12px;opacity:0;transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="hero">
+  <h1>PP-OCRv6 Local Studio<br>Deployment Guide</h1>
+  <p>From a fresh Mac to a fully working OCR workbench in under 5 minutes. No PaddlePaddle dependency, no cloud calls, ONNX runtime with CoreML acceleration.</p>
+  <div class="badges">
+    <span class="badge purple">macOS · Apple Silicon</span>
+    <span class="badge">Python 3.10+</span>
+    <span class="badge">FastAPI + onnxruntime</span>
+    <span class="badge green">CoreML / ANE</span>
+    <span class="badge">~80 MB install</span>
+  </div>
+</div>
+
+<nav class="toc">
+  <a href="#why">Why Studio</a>
+  <a href="#prereq">Prerequisites</a>
+  <a href="#layout">Layout</a>
+  <a href="#install">Install</a>
+  <a href="#models">Models</a>
+  <a href="#start">Start</a>
+  <a href="#features">Features</a>
+  <a href="#api">REST API</a>
+  <a href="#tuning">Tuning</a>
+  <a href="#faq">FAQ</a>
+</nav>
+
+<!-- ─── WHY ───────────────────────────────────────────────── -->
+<h2 id="why"><span class="num">1</span> Why this Studio over official tools</h2>
+
+<p>Baidu's PP-OCRv6 was released on June 11, 2026. The official distribution channels are functional but bare:</p>
+
+<table>
+  <thead>
+    <tr><th></th><th>Official PaddleOCR SDK</th><th>Official HF Demo</th><th>This Studio</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Install footprint</td><td>~1.2 GB (Paddle)</td><td>None, hosted</td><td><span class="tag tag-yes">~80 MB</span></td></tr>
+    <tr><td>Desktop UI</td><td><span class="tag tag-no">CLI only</span></td><td>Single image</td><td><span class="tag tag-yes">Full GUI</span></td></tr>
+    <tr><td>Batch queue</td><td>DIY scripting</td><td><span class="tag tag-no">No</span></td><td><span class="tag tag-yes">Built-in</span></td></tr>
+    <tr><td>Persistent history</td><td><span class="tag tag-no">No</span></td><td><span class="tag tag-no">No</span></td><td><span class="tag tag-yes">SQLite, searchable</span></td></tr>
+    <tr><td>Parameter tuning</td><td>Code kwargs</td><td><span class="tag tag-no">No</span></td><td><span class="tag tag-yes">UI sliders, hot reload</span></td></tr>
+    <tr><td>Privacy</td><td><span class="tag tag-yes">Local</span></td><td><span class="tag tag-no">Uploads to HF</span></td><td><span class="tag tag-yes">127.0.0.1 only</span></td></tr>
+    <tr><td>Hardware accel</td><td>MKL / CUDA</td><td>Server-side</td><td><span class="tag tag-yes">CoreML / ANE</span></td></tr>
+    <tr><td>REST API</td><td>DIY</td><td><span class="tag tag-no">No</span></td><td><span class="tag tag-yes">FastAPI</span></td></tr>
+  </tbody>
+</table>
+
+<p class="muted">The official Python pipeline is more capable for layout-heavy documents (table structure, formula recognition). This Studio focuses on giving you a polished local UX for the text detection + recognition pipeline.</p>
+
+<!-- ─── PREREQ ────────────────────────────────────────────── -->
+<h2 id="prereq"><span class="num">2</span> Prerequisites</h2>
+<table>
+  <tbody>
+    <tr><th>OS</th><td>macOS 12 Monterey or later (Apple Silicon for CoreML acceleration)</td></tr>
+    <tr><th>Python</th><td>3.10 or later, 3.12 recommended</td></tr>
+    <tr><th>Disk</th><td>~80 MB total (Python deps + ~6 MB model weights)</td></tr>
+    <tr><th>Network</th><td>One-time download of model weights, otherwise fully offline</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <span class="ico">NOTE</span>
+  <div>Intel Macs also work but fall back to CPU execution provider (~3-5× slower than CoreML on M-series).</div>
+</div>
+
+<!-- ─── LAYOUT ────────────────────────────────────────────── -->
+<h2 id="layout"><span class="num">3</span> Project layout</h2>
+<div class="tree">
+<span class="d">ocr_benchmark_v6/</span>
+├── <span class="d">ppocrv6_onnx/</span>             <span class="c"># model weights</span>
+│   ├── <span class="d">det/</span><span class="f">inference.onnx</span>          <span class="c"># 1.7 MB detector</span>
+│   └── <span class="d">rec/</span>
+│       ├── <span class="f">inference.onnx</span>        <span class="c"># 4.3 MB recognizer</span>
+│       └── <span class="f">char_dict.json</span>        <span class="c"># 6904 chars</span>
+├── <span class="d">webapp/</span>
+│   ├── <span class="f">server.py</span>                <span class="c"># FastAPI app</span>
+│   ├── <span class="d">data/</span>                    <span class="c"># auto-created</span>
+│   │   ├── <span class="f">history.db</span>           <span class="c"># SQLite history</span>
+│   │   ├── <span class="f">config.json</span>          <span class="c"># persisted settings</span>
+│   │   ├── <span class="d">uploads/</span>             <span class="c"># original images</span>
+│   │   ├── <span class="d">annotated/</span>           <span class="c"># bbox overlays</span>
+│   │   └── <span class="d">thumbs/</span>              <span class="c"># history thumbnails</span>
+│   └── <span class="d">static/</span>
+│       ├── <span class="f">index.html</span>           <span class="c"># SPA frontend</span>
+│       └── <span class="f">tutorial.html</span>        <span class="c"># this page</span>
+└── <span class="f">ppocrv6_local.py</span>             <span class="c"># standalone CLI</span>
+</div>
+
+<!-- ─── INSTALL ───────────────────────────────────────────── -->
+<h2 id="install"><span class="num">4</span> Install dependencies</h2>
+
+<p>Five packages, ~50 MB total, no PaddlePaddle.</p>
+
+<pre><button class="copy-pre" onclick="copyCode(this)">COPY</button><code># Create a venv (or reuse existing)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install everything
+pip install onnxruntime pillow numpy fastapi "uvicorn[standard]" python-multipart</code></pre>
+
+<p>Verify:</p>
+<pre><code>pip list | grep -E "onnxruntime|fastapi|uvicorn"
+# onnxruntime  1.26.0
+# fastapi      0.137.x
+# uvicorn      0.49.x</code></pre>
+
+<!-- ─── MODELS ────────────────────────────────────────────── -->
+<h2 id="models"><span class="num">5</span> Get the model weights</h2>
+
+<p>Skip this if you already have the <code>ppocrv6_onnx/</code> folder populated. Otherwise download from Hugging Face:</p>
+
+<pre><button class="copy-pre" onclick="copyCode(this)">COPY</button><code>pip install huggingface_hub
+
+python3 - &lt;&lt;'EOF'
+from huggingface_hub import hf_hub_download
+import shutil, pathlib
+base = pathlib.Path("ppocrv6_onnx")
+(base/"det").mkdir(parents=True, exist_ok=True)
+(base/"rec").mkdir(parents=True, exist_ok=True)
+shutil.copy(hf_hub_download("PaddlePaddle/PP-OCRv6_tiny_det_onnx","inference.onnx"),
+            base/"det"/"inference.onnx")
+shutil.copy(hf_hub_download("PaddlePaddle/PP-OCRv6_tiny_rec_onnx","inference.onnx"),
+            base/"rec"/"inference.onnx")
+shutil.copy(hf_hub_download("PaddlePaddle/PP-OCRv6_tiny_rec_onnx","char_dict.json"),
+            base/"rec"/"char_dict.json")
+print("done")
+EOF</code></pre>
+
+<div class="callout warn">
+  <span class="ico">CHINA</span>
+  <div>In mainland China, mirror via <code>export HF_ENDPOINT=https://hf-mirror.com</code> before running the snippet.</div>
+</div>
+
+<!-- ─── START ─────────────────────────────────────────────── -->
+<h2 id="start"><span class="num">6</span> Start the Studio</h2>
+
+<pre><button class="copy-pre" onclick="copyCode(this)">COPY</button><code>cd ocr_benchmark_v6
+source .venv/bin/activate     # if not already
+python3 webapp/server.py</code></pre>
+
+<p>You'll see:</p>
+<pre><code>Loading models...
+Ready · backend: CoreMLExecutionProvider
+INFO:  Uvicorn running on http://127.0.0.1:8765</code></pre>
+
+<p>Open <a href="http://localhost:8765" style="color:var(--accent)">http://localhost:8765</a> in any browser.</p>
+
+<div class="callout info">
+  <span class="ico">TIP</span>
+  <div>Look at the bottom-left status indicator. Green dot + <code>CoreML</code> means hardware acceleration is active. <code>CPU</code> means falling back to pure CPU.</div>
+</div>
+
+<!-- ─── FEATURES ──────────────────────────────────────────── -->
+<h2 id="features"><span class="num">7</span> Using the Studio</h2>
+
+<h3>Recognize view</h3>
+<ul>
+  <li><strong>Drop images</strong> onto the left dropzone, or click to browse. Multi-file selection supported.</li>
+  <li><strong>Paste</strong> a screenshot anywhere with <code>⌘V</code>.</li>
+  <li>The queue shows each item with thumbnail, filename, status badge and progress bar.</li>
+  <li>Click <strong>Run all</strong> to process the queue sequentially. Click any item to view its result on the right.</li>
+  <li>Right panel has three tabs: <strong>Text output</strong> (plain), <strong>Visualization</strong> (annotated image), <strong>Lines</strong> (per-box coordinates table).</li>
+  <li>Footer shows detect / recognize / total milliseconds, box count and active backend.</li>
+</ul>
+
+<h3>History view</h3>
+<ul>
+  <li>Every recognition is persisted to SQLite under <code>webapp/data/history.db</code>.</li>
+  <li>Searchable by filename or recognized text.</li>
+  <li>Click any card to open the detail modal with the annotated image and full text. Delete individual records or clear all.</li>
+</ul>
+
+<h3>Settings view</h3>
+<ul>
+  <li><strong>Execution provider</strong>: Auto / CoreML / CPU. Changing this reloads the model.</li>
+  <li><strong>Thread count</strong>: CPU threads for parallel ops.</li>
+  <li><strong>Detection tuning</strong>: binarization threshold, box confidence, unclip ratio, max edge.</li>
+  <li><strong>Save to history</strong> toggle to opt out of persistence for sensitive workflows.</li>
+</ul>
+
+<!-- ─── API ───────────────────────────────────────────────── -->
+<h2 id="api"><span class="num">8</span> REST API</h2>
+
+<p>The Studio is also a backend for integration. All endpoints on <code>http://localhost:8765</code>.</p>
+
+<div class="endpoint"><span class="method m-get">GET</span><code>/info</code><span class="ep-desc">backend, available providers, current config</span></div>
+<div class="endpoint"><span class="method m-get">GET</span><code>/health</code><span class="ep-desc">simple liveness probe</span></div>
+<div class="endpoint"><span class="method m-post">POST</span><code>/ocr</code><span class="ep-desc">multipart upload, returns lines + annotated</span></div>
+<div class="endpoint"><span class="method m-get">GET</span><code>/history?q=&amp;limit=50</code><span class="ep-desc">paginated, searchable</span></div>
+<div class="endpoint"><span class="method m-get">GET</span><code>/history/{id}</code><span class="ep-desc">full record</span></div>
+<div class="endpoint"><span class="method m-del">DELETE</span><code>/history/{id}</code><span class="ep-desc">remove single record</span></div>
+<div class="endpoint"><span class="method m-post">POST</span><code>/history/clear</code><span class="ep-desc">wipe all history</span></div>
+<div class="endpoint"><span class="method m-get">GET</span><code>/settings</code><span class="ep-desc">read current config</span></div>
+<div class="endpoint"><span class="method m-put">PUT</span><code>/settings</code><span class="ep-desc">update config, reloads model</span></div>
+
+<h3>Curl example</h3>
+<pre><button class="copy-pre" onclick="copyCode(this)">COPY</button><code>curl -X POST http://localhost:8765/ocr \
+  -F "file=@my_doc.jpg" | jq .text</code></pre>
+
+<h3>Python example</h3>
+<pre><button class="copy-pre" onclick="copyCode(this)">COPY</button><code>import requests
+r = requests.post("http://localhost:8765/ocr",
+                  files={"file": open("doc.jpg","rb")})
+data = r.json()
+print(data["text"])
+print(f'{data["n_boxes"]} boxes in {data["total_ms"]}ms')</code></pre>
+
+<h3>JSON response shape</h3>
+<pre><code>{
+  "id":       "a1b2c3d4e5f6",
+  "filename": "doc.jpg",
+  "lines": [
+    { "text": "Hello world", "box": [12, 8, 380, 56] }
+  ],
+  "text":     "Hello world\nLine 2 ...",
+  "det_ms":   165,
+  "rec_ms":   90,
+  "total_ms": 255,
+  "n_boxes":  2,
+  "backend":  "CoreMLExecutionProvider",
+  "annotated":"data:image/jpeg;base64,...",
+  "thumb_url":"/data/thumbs/a1b2c3d4e5f6.jpg"
+}</code></pre>
+
+<!-- ─── TUNING ────────────────────────────────────────────── -->
+<h2 id="tuning"><span class="num">9</span> Parameter tuning cheatsheet</h2>
+
+<table>
+  <thead><tr><th>Parameter</th><th>Default</th><th>Try lower</th><th>Try higher</th></tr></thead>
+  <tbody>
+    <tr><td>Binarization threshold</td><td>0.20</td><td>Detect faint text, more noise</td><td>Skip uncertain regions</td></tr>
+    <tr><td>Box confidence</td><td>0.40</td><td>Keep marginal boxes</td><td>Drop low-confidence boxes</td></tr>
+    <tr><td>Unclip ratio</td><td>1.40</td><td>Tighter crops, may clip characters</td><td>Larger crops, may merge lines</td></tr>
+    <tr><td>Max edge</td><td>960</td><td>Faster, may miss small text</td><td>Slower, finer detection</td></tr>
+  </tbody>
+</table>
+
+<p class="muted">Tip: for screenshots of dense documents, push Max edge to 1280 and lower Binarization threshold to 0.15. For handwriting, bump Unclip ratio to 1.6.</p>
+
+<!-- ─── FAQ ───────────────────────────────────────────────── -->
+<h2 id="faq"><span class="num">10</span> FAQ</h2>
+
+<h3>Recognition is slow, single image takes 5+ seconds</h3>
+<p>Check the bottom-left backend label. If it says <code>CPU</code>, CoreML is unavailable on your machine. Intel Macs will always fall back to CPU.</p>
+
+<h3>Multi-column documents read in wrong order</h3>
+<p>This is a structural limitation of the detect+recognize pipeline, not a bug. The model knows where text is but doesn't analyze layout. For multi-column documents, use PaddleOCR-VL or GLM-OCR (cloud VLMs).</p>
+
+<h3>Want to disable history for privacy</h3>
+<p>Settings → Data &amp; Storage → flip "Save to history" off. Or pass <code>?save=false</code> when calling the API directly.</p>
+
+<h3>Port 8765 already in use</h3>
+<p>Edit the last line of <code>webapp/server.py</code> and change <code>port=8765</code>.</p>
+
+<h3>Stop the server</h3>
+<p>Press <code>Ctrl+C</code> in the terminal running <code>server.py</code>.</p>
+
+<h3>Run as a launch daemon</h3>
+<p>Wrap the command in a <code>launchd</code> plist under <code>~/Library/LaunchAgents/</code> if you want auto-start at login. Save the plist and run <code>launchctl load</code>.</p>
+
+<hr>
+
+<footer>
+  PP-OCRv6 weights © Baidu, Apache 2.0. Hugging Face mirror: <a href="https://huggingface.co/PaddlePaddle" target="_blank">huggingface.co/PaddlePaddle</a><br>
+  PaddleOCR source: <a href="https://github.com/PaddlePaddle/PaddleOCR" target="_blank">github.com/PaddlePaddle/PaddleOCR</a><br>
+  Studio version 0.2.0 · built with FastAPI + onnxruntime
+</footer>
+
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function copyCode(btn){
+  const pre = btn.parentElement;
+  const code = pre.querySelector("code").textContent;
+  navigator.clipboard.writeText(code.trim()).then(()=>{
+    const t = document.getElementById("toast");
+    t.textContent = "Copied"; t.classList.add("show");
+    setTimeout(()=>t.classList.remove("show"), 1500);
+  });
+}
+</script>
+</body>
+</html>

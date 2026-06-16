@@ -1,0 +1,38 @@
+# GLM-OCR API
+glmocr
+requests
+urllib3
+
+# PaddleOCR API
+Pillow
+fastapi
+uvicorn
+python-multipart
+onnxruntime
+
+# OmniDocBench evaluation (core dependencies)
+numpy<2.0.0
+tqdm
+matplotlib
+scikit-image<=0.20.0
+scipy
+sympy
+func-timeout
+PyYAML
+opencv-python
+beautifulsoup4
+lxml
+Levenshtein
+loguru
+pycocotools
+scikit-learn
+pandas
+openpyxl
+tabulate
+rich
+pylatexenc
+
+# OmniDocBench (pdf_validation.py)
+evaluate==0.4.3
+mmeval==0.2.1
+apted==1.0.3

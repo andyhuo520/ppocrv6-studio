@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+
+# Models (download separately — see README)
+ppocrv6_onnx/
+ppocrv6_small_onnx/
+ppocrv6_medium_onnx/
+
+# Webapp runtime data
+webapp/data/uploads/
+webapp/data/annotated/
+webapp/data/thumbs/
+webapp/data/history.db
+
+# OmniDocBench submodule data
+OmniDocBench/
+
+# Benchmark output
+predictions/
+results/
+
+# Working files
+work/
+shot.py
+*.log
+
+# Draft / intermediate HTML
+OCR_Benchmark_Report.html
+OCR_Evaluation_Article.html
+OCR_Evaluation_Article_v6.html
+fix_panels.py
+fix_tire_panel.py
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Claude Code
+.claude/settings.local.json
+
+# Editors
+.vscode/
+*.swp

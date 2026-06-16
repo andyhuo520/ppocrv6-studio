@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PP-OCRv6 本地工作台</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design Tokens
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:          #0a0a0c;
+  --surface-1:   #101015;
+  --surface-2:   #16161d;
+  --surface-3:   #1c1c25;
+  --surface-4:   #23232e;
+  --border:      #25252e;
+  --border-strong:#33333f;
+  --overlay:     rgba(0,0,0,.5);
+
+  --text:        #e8e9ed;
+  --text-muted:  #8c8f9a;
+  --text-dim:    #555864;
+
+  --accent:      #7c5cff;
+  --accent-hover:#8d6fff;
+  --accent-soft: rgba(124,92,255,.12);
+  --accent-line: rgba(124,92,255,.35);
+
+  --success:  #4ade80;
+  --warning:  #fbbf24;
+  --danger:   #f87171;
+  --info:     #60a5fa;
+  --success-soft: rgba(74,222,128,.12);
+  --warning-soft: rgba(251,191,36,.12);
+  --danger-soft:  rgba(248,113,113,.12);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text",
+               "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Menlo", "Consolas",
+               "PingFang SC", monospace;
+
+  --sidebar-w: 230px;
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 10px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--font-sans); font-size:13px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shell
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app{display:grid; grid-template-columns:var(--sidebar-w) 1fr; height:100vh}
+
+.sidebar{
+  background:var(--surface-1); border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+}
+.brand{
+  padding:18px 18px 16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:10px;
+}
+.brand-mark{
+  width:26px; height:26px; border-radius:var(--radius);
+  background:linear-gradient(135deg,#7c5cff 0%,#4dd0e1 100%);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:11px; font-weight:700; color:#fff;
+  letter-spacing:-0.5px;
+}
+.brand-name{font-size:13px;font-weight:600;letter-spacing:-0.2px}
+.brand-sub{font-size:10.5px;color:var(--text-dim);margin-top:2px;letter-spacing:.5px}
+
+.nav{flex:1; padding:10px 8px}
+.nav-section-label{
+  font-size:10px; color:var(--text-dim); text-transform:uppercase;
+  letter-spacing:1px; padding:14px 10px 6px;
+}
+.nav-item{
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:var(--radius);
+  color:var(--text-muted); font-size:13px;
+  cursor:pointer; user-select:none;
+  transition: background .12s, color .12s;
+}
+.nav-item:hover{background:var(--surface-2); color:var(--text)}
+.nav-item.active{background:var(--accent-soft); color:var(--accent)}
+.nav-item .icon{width:14px;height:14px;flex-shrink:0}
+.nav-badge{
+  margin-left:auto; font-size:10px; font-family:var(--font-mono);
+  padding:1px 6px; border-radius:9px; background:var(--surface-3);
+  color:var(--text-muted); min-width:18px; text-align:center;
+}
+.nav-item.active .nav-badge{background:var(--accent); color:#fff}
+
+.sidebar-footer{
+  border-top:1px solid var(--border); padding:12px 16px; font-size:11px;
+}
+.status-row{display:flex; align-items:center; gap:7px; color:var(--text-muted)}
+.status-dot{
+  width:6px; height:6px; border-radius:50%;
+  background:var(--success); box-shadow:0 0 6px var(--success);
+}
+.status-dot.danger{background:var(--danger);box-shadow:0 0 6px var(--danger)}
+.backend-label{font-family:var(--font-mono);font-size:10.5px;color:var(--text)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Toolbar
+   ═══════════════════════════════════════════════════════════════════════════ */
+.content{display:flex; flex-direction:column; overflow:hidden}
+.toolbar{
+  height:46px; border-bottom:1px solid var(--border);
+  background:var(--surface-1);
+  display:flex; align-items:center; gap:12px; padding:0 18px;
+}
+.tb-title{font-size:13px; font-weight:600}
+.tb-sub{font-size:11px; color:var(--text-muted); margin-left:6px}
+
+.btn{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px; border:1px solid var(--border-strong);
+  border-radius:var(--radius); font-size:12px;
+  background:var(--surface-2); color:var(--text);
+  transition: background .12s, border-color .12s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--surface-3); border-color:#454555}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn.primary:hover{background:var(--accent-hover); border-color:var(--accent-hover)}
+.btn.ghost{background:transparent; border-color:var(--border)}
+.btn.danger{color:var(--danger); border-color:rgba(248,113,113,.3)}
+.btn.danger:hover{background:var(--danger-soft)}
+.btn .icon{width:13px; height:13px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Views
+   ═══════════════════════════════════════════════════════════════════════════ */
+.view-wrap{flex:1; overflow:hidden; display:flex}
+.view{display:none; flex:1; overflow:hidden}
+.view.active{display:flex}
+
+/* ─── Recognize ─────────────────────────────────────────────── */
+.recognize-layout{display:grid; grid-template-columns:340px 1fr; flex:1; overflow:hidden}
+
+.queue-panel{
+  border-right:1px solid var(--border); background:var(--surface-1);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.dropzone{
+  margin:14px; padding:24px 16px;
+  border:1px dashed var(--border-strong);
+  border-radius:var(--radius-lg); text-align:center;
+  cursor:pointer; position:relative;
+  transition: border-color .15s, background .15s;
+}
+.dropzone:hover, .dropzone.drag{
+  border-color:var(--accent); background:var(--accent-soft);
+}
+.dropzone input{position:absolute; inset:0; opacity:0; cursor:pointer}
+.dz-icon{width:24px; height:24px; color:var(--text-muted); margin:0 auto 8px}
+.dz-title{font-size:13px; color:var(--text); margin-bottom:3px}
+.dz-hint{font-size:11px; color:var(--text-dim)}
+
+.queue-header{
+  padding:0 16px 10px; display:flex; align-items:center; gap:8px;
+  font-size:11px; color:var(--text-dim); text-transform:uppercase;
+  letter-spacing:1px;
+}
+.queue-count{margin-left:auto; font-family:var(--font-mono); color:var(--text-muted)}
+.queue-actions{display:flex; gap:6px}
+.queue-actions .btn{padding:3px 9px; font-size:11px}
+
+.queue-list{flex:1; overflow-y:auto; padding:0 8px 14px}
+.queue-empty{
+  text-align:center; color:var(--text-dim); font-size:12px;
+  padding:30px 20px; line-height:1.8;
+}
+.queue-item{
+  display:flex; gap:10px; padding:9px 10px; margin-bottom:4px;
+  border-radius:var(--radius); cursor:pointer;
+  border:1px solid transparent;
+}
+.queue-item:hover{background:var(--surface-2)}
+.queue-item.selected{background:var(--surface-3); border-color:var(--border-strong)}
+.qi-thumb{
+  width:36px; height:36px; flex-shrink:0; border-radius:var(--radius-sm);
+  background:var(--surface-3); object-fit:cover; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+}
+.qi-thumb img{width:100%; height:100%; object-fit:cover}
+.qi-body{flex:1; min-width:0}
+.qi-name{
+  font-size:12.5px; color:var(--text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.qi-meta{
+  font-size:10.5px; color:var(--text-muted); margin-top:2px;
+  font-family:var(--font-mono); display:flex; gap:6px; align-items:center;
+}
+.qi-status{
+  font-size:10px; padding:1px 6px; border-radius:8px;
+  font-weight:500; flex-shrink:0;
+}
+.s-pending{background:var(--surface-4); color:var(--text-muted)}
+.s-processing{background:var(--accent-soft); color:var(--accent)}
+.s-done{background:var(--success-soft); color:var(--success)}
+.s-error{background:var(--danger-soft); color:var(--danger)}
+.qi-progress{
+  height:2px; background:var(--surface-4); border-radius:1px;
+  margin-top:5px; overflow:hidden;
+}
+.qi-progress-bar{height:100%; background:var(--accent); transition:width .3s}
+
+/* Detail */
+.detail-panel{display:flex; flex-direction:column; overflow:hidden; background:var(--bg)}
+.detail-header{
+  padding:14px 22px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:14px;
+}
+.dh-name{
+  font-size:13px; font-weight:600; max-width:300px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dh-meta{font-size:11px; color:var(--text-muted); font-family:var(--font-mono)}
+.dh-actions{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap}
+
+.tabs{
+  display:flex; padding:0 22px; border-bottom:1px solid var(--border);
+  background:var(--surface-1); flex-shrink:0;
+}
+.tab{
+  padding:9px 14px; font-size:12.5px; color:var(--text-muted);
+  border-bottom:2px solid transparent; cursor:pointer;
+  transition: color .12s, border-color .12s;
+  display:flex; align-items:center; gap:6px;
+}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--text); border-bottom-color:var(--accent)}
+.tab-count{
+  font-size:10px; padding:0 6px; border-radius:8px;
+  background:var(--surface-4); color:var(--text-muted);
+  font-family:var(--font-mono);
+}
+.tab.active .tab-count{background:var(--accent); color:#fff}
+
+.detail-body{flex:1; overflow:auto; padding:22px}
+.panel-section{display:none}
+.panel-section.active{display:block}
+
+#text-output{
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.85;
+  white-space:pre-wrap; word-break:break-word;
+  background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 18px;
+}
+
+#vis-img{max-width:100%; height:auto; display:block;
+  border:1px solid var(--border); border-radius:var(--radius); background:#000}
+
+#lines-table, .data-table{width:100%; border-collapse:collapse; font-size:12px}
+#lines-table th, #lines-table td, .data-table th, .data-table td{
+  padding:7px 12px; border-bottom:1px solid var(--border); text-align:left;
+}
+#lines-table th, .data-table th{
+  background:var(--surface-1); font-weight:500; color:var(--text-muted);
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.5px;
+  position:sticky; top:-22px;
+}
+#lines-table .mono{font-family:var(--font-mono); font-size:11px; color:var(--text-muted)}
+
+.detail-empty{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  flex:1; color:var(--text-dim); gap:14px; padding:60px 20px;
+}
+.detail-empty .icon{width:38px; height:38px; opacity:.5}
+.detail-empty .title{font-size:14px; color:var(--text-muted)}
+.detail-empty .hint{font-size:12px; max-width:280px; text-align:center; line-height:1.7}
+
+/* Tables panel */
+.tables-empty{
+  padding:50px 20px; text-align:center; color:var(--text-dim);
+  font-size:12.5px; line-height:1.8;
+}
+.tables-empty .hint{margin-top:8px;color:var(--text-muted);max-width:380px;margin-left:auto;margin-right:auto}
+.table-card{
+  background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius); margin-bottom:18px; overflow:hidden;
+}
+.table-card-head{
+  padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+}
+.tc-title{font-size:12.5px; font-weight:600}
+.tc-shape{
+  font-family:var(--font-mono); font-size:10.5px; color:var(--text-muted);
+  padding:2px 8px; background:var(--surface-3); border-radius:8px;
+}
+.tc-actions{margin-left:auto; display:flex; gap:6px}
+.tc-actions .btn{padding:3px 9px; font-size:11px}
+.recon-table{width:100%; border-collapse:collapse; font-size:12.5px}
+.table-scroll{overflow:auto; max-width:100%}
+.recon-table th, .recon-table td{
+  padding:7px 12px; border:1px solid var(--border); vertical-align:top;
+  color:var(--text);
+  min-width:86px;
+}
+.recon-table thead th{
+  background:var(--surface-2); font-weight:600; font-size:12px;
+  color:var(--text);
+}
+.recon-table tbody tr:nth-child(even) td{background:var(--surface-2)}
+
+.notice-strip{
+  font-size:11.5px; color:var(--warning); background:var(--warning-soft);
+  border:1px solid rgba(251,191,36,.2); border-radius:var(--radius);
+  padding:8px 12px; margin-bottom:16px; line-height:1.6;
+}
+
+/* Stats footer */
+.stats-bar{
+  border-top:1px solid var(--border);
+  display:flex; padding:10px 22px; gap:24px;
+  background:var(--surface-1); flex-shrink:0;
+  font-size:11px; color:var(--text-muted);
+}
+.stat-cell{display:flex; align-items:center; gap:6px}
+.stat-cell .label{color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; font-size:10px}
+.stat-cell .value{color:var(--text); font-family:var(--font-mono); font-weight:600}
+
+/* History */
+.history-view{flex-direction:column; padding:0}
+.history-toolbar{
+  padding:14px 22px; border-bottom:1px solid var(--border);
+  display:flex; gap:12px; align-items:center;
+}
+.search-input{
+  flex:1; max-width:340px;
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:6px 12px; font-size:12.5px;
+}
+.search-input:focus{outline:none; border-color:var(--accent-line)}
+
+.history-grid{
+  flex:1; overflow:auto; padding:14px 22px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:14px; align-content:start;
+}
+.hist-card{
+  background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius-lg); overflow:hidden;
+  cursor:pointer; transition: border-color .12s;
+}
+.hist-card:hover{border-color:var(--border-strong)}
+.hc-thumb{
+  width:100%; height:140px; background:var(--surface-3);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-dim); font-size:11px;
+}
+.hc-thumb img{width:100%; height:100%; object-fit:cover}
+.hc-body{padding:10px 12px}
+.hc-name{
+  font-size:12px; color:var(--text); font-weight:500;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.hc-meta{
+  font-size:11px; color:var(--text-muted); margin-top:4px;
+  display:flex; gap:8px; font-family:var(--font-mono); flex-wrap:wrap;
+}
+.history-empty{
+  grid-column:1/-1; text-align:center; color:var(--text-dim);
+  padding:60px 20px; font-size:13px;
+}
+
+/* Settings */
+.settings-view{flex-direction:column; overflow:auto; padding:0}
+.settings-container{max-width:680px; padding:24px 30px; width:100%}
+.settings-section{margin-bottom:32px}
+.settings-section h3{
+  font-size:12px; color:var(--text-muted); text-transform:uppercase;
+  letter-spacing:1.2px; font-weight:600;
+  padding-bottom:8px; margin-bottom:14px;
+  border-bottom:1px solid var(--border);
+}
+.setting-row{
+  display:grid; grid-template-columns:200px 1fr 80px;
+  gap:18px; align-items:center; padding:12px 0;
+  border-bottom:1px solid var(--surface-2);
+}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:13px; font-weight:500}
+.setting-desc{font-size:11px; color:var(--text-muted); margin-top:2px; font-weight:400}
+.setting-control input[type=range]{width:100%; accent-color:var(--accent)}
+.setting-control select,
+.setting-control input[type=number]{
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:5px 10px; font-size:12.5px;
+  width:100%; font-family:var(--font-mono);
+}
+.setting-control input:focus, .setting-control select:focus{
+  outline:none; border-color:var(--accent-line);
+}
+.setting-value{
+  font-family:var(--font-mono); font-size:12px; color:var(--accent);
+  text-align:right;
+}
+.toggle{
+  width:32px; height:18px; background:var(--surface-3);
+  border-radius:9px; position:relative; cursor:pointer;
+  transition: background .15s;
+}
+.toggle::after{
+  content:""; position:absolute; width:14px; height:14px;
+  background:#fff; border-radius:50%; top:2px; left:2px;
+  transition: left .15s;
+}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:16px}
+.settings-actions{
+  display:flex; gap:8px; justify-content:flex-end;
+  margin-top:20px; padding-top:20px; border-top:1px solid var(--border);
+}
+
+/* About */
+.about-view{flex-direction:column; overflow:auto}
+.about-container{max-width:760px; padding:30px 36px; width:100%; line-height:1.85}
+.about-container h2{
+  font-size:18px; font-weight:600; margin-top:30px; margin-bottom:12px;
+  letter-spacing:-.2px;
+}
+.about-container h2:first-child{margin-top:0}
+.about-container p{color:var(--text-muted); font-size:13px; margin-bottom:12px}
+.about-container code{
+  font-family:var(--font-mono); background:var(--surface-2);
+  padding:1px 5px; border-radius:3px; font-size:11.5px;
+}
+.compare-table{
+  width:100%; border-collapse:collapse; margin:14px 0;
+  font-size:12.5px; border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden;
+}
+.compare-table th, .compare-table td{
+  padding:10px 14px; text-align:left;
+  border-bottom:1px solid var(--border); vertical-align:top;
+}
+.compare-table th{
+  background:var(--surface-1); font-weight:600; color:var(--text); font-size:12px;
+}
+.compare-table .tag{
+  font-size:10.5px; padding:1px 7px; border-radius:9px;
+  display:inline-block; font-weight:500;
+}
+.tag-yes{background:var(--success-soft); color:var(--success)}
+.tag-no{background:var(--danger-soft); color:var(--danger)}
+.tag-meh{background:var(--warning-soft); color:var(--warning)}
+
+.feature-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px; margin:18px 0;
+}
+.feature-card{
+  background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:14px 16px;
+}
+.feature-card h4{font-size:12.5px; font-weight:600; margin-bottom:6px}
+.feature-card p{font-size:12px; color:var(--text-muted); margin:0; line-height:1.7}
+
+/* Toast */
+.toast{
+  position:fixed; bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--surface-3); border:1px solid var(--border-strong);
+  padding:9px 18px; border-radius:var(--radius);
+  font-size:12.5px; opacity:0; pointer-events:none;
+  transition: all .2s; z-index:1000;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+/* Modal */
+.modal-backdrop{
+  position:fixed; inset:0; background:var(--overlay);
+  display:none; align-items:center; justify-content:center; z-index:500;
+}
+.modal-backdrop.show{display:flex}
+.modal{
+  background:var(--surface-1); border:1px solid var(--border-strong);
+  border-radius:var(--radius-lg); width:min(960px, 92vw);
+  max-height:88vh; display:flex; flex-direction:column; overflow:hidden;
+}
+.modal-header{
+  padding:14px 22px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:14px;
+}
+.modal-body{flex:1; overflow:auto; padding:20px 24px}
+
+/* Dropdown menu (for export) */
+.menu-wrap{position:relative}
+.menu{
+  position:absolute; top:calc(100% + 4px); right:0;
+  background:var(--surface-2); border:1px solid var(--border-strong);
+  border-radius:var(--radius); padding:4px;
+  min-width:180px; box-shadow:0 10px 30px rgba(0,0,0,.5);
+  z-index:50; display:none;
+}
+.menu.show{display:block}
+.menu-item{
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:var(--radius-sm);
+  font-size:12.5px; cursor:pointer;
+}
+.menu-item:hover{background:var(--surface-3)}
+.menu-item .ext{
+  margin-left:auto; font-family:var(--font-mono);
+  font-size:10.5px; color:var(--text-dim);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:8px; height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--surface-4); border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#3a3a48}
+</style>
+</head>
+<body>
+
+<!-- Icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-recognize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.7 9.7 0 0 0-6.4 2.6L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+  </defs>
+</svg>
+
+<!-- App shell -->
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">PP</div>
+      <div>
+        <div class="brand-name">OCRv6 Studio</div>
+        <div class="brand-sub">本地工作台 · v0.3</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section-label">工作区</div>
+      <div class="nav-item active" data-view="recognize">
+        <svg class="icon"><use href="#i-recognize"/></svg>
+        <span>识别</span>
+        <span class="nav-badge" id="nav-badge-queue">0</span>
+      </div>
+      <div class="nav-item" data-view="history">
+        <svg class="icon"><use href="#i-history"/></svg>
+        <span>历史记录</span>
+        <span class="nav-badge" id="nav-badge-history">0</span>
+      </div>
+
+      <div class="nav-section-label">系统</div>
+      <div class="nav-item" data-view="settings">
+        <svg class="icon"><use href="#i-settings"/></svg>
+        <span>参数设置</span>
+      </div>
+      <div class="nav-item" data-view="about">
+        <svg class="icon"><use href="#i-info"/></svg>
+        <span>关于</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="status-row">
+        <span class="status-dot" id="status-dot"></span>
+        <span>推理引擎</span>
+        <span class="backend-label" id="backend-label" style="margin-left:auto">—</span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="toolbar">
+      <div class="tb-title" id="tb-title">识别</div>
+      <div class="tb-sub" id="tb-sub">上传图片，本地识别文字与表格</div>
+    </div>
+
+    <div class="view-wrap">
+
+      <!-- ── RECOGNIZE ──────────────────────────────────────────── -->
+      <section class="view active recognize-view" data-view="recognize">
+        <div class="recognize-layout">
+
+          <div class="queue-panel">
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="file-input" accept="image/*" multiple>
+              <svg class="dz-icon"><use href="#i-upload"/></svg>
+              <div class="dz-title">拖拽图片到此处</div>
+              <div class="dz-hint">或点击选择 · 支持批量 · 截图可用 ⌘V 粘贴</div>
+            </div>
+
+            <div class="queue-header">
+              <span>队列</span>
+              <span class="queue-count" id="queue-count">0 项</span>
+              <div class="queue-actions">
+                <button class="btn ghost" id="btn-run-all" disabled>开始识别</button>
+                <button class="btn ghost" id="btn-clear-queue" disabled>清空</button>
+              </div>
+            </div>
+
+            <div class="queue-list" id="queue-list">
+              <div class="queue-empty">
+                拖入或选择图片以开始。<br>多张图片将按顺序处理。
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-panel">
+            <div class="detail-empty" id="detail-empty">
+              <svg class="icon"><use href="#i-image"/></svg>
+              <div class="title">尚未选择项目</div>
+              <div class="hint">从队列中选择一项查看识别结果，或拖入图片开始识别。</div>
+            </div>
+
+            <div id="detail-content" style="display:none; flex:1; flex-direction:column; overflow:hidden">
+              <div class="detail-header">
+                <div>
+                  <div class="dh-name" id="dh-name">—</div>
+                  <div class="dh-meta" id="dh-meta">—</div>
+                </div>
+                <div class="dh-actions">
+                  <button class="btn ghost" id="btn-copy-text">
+                    <svg class="icon"><use href="#i-copy"/></svg>复制文本
+                  </button>
+                  <div class="menu-wrap">
+                    <button class="btn ghost" id="btn-export">
+                      <svg class="icon"><use href="#i-download"/></svg>导出
+                      <svg class="icon"><use href="#i-chevron"/></svg>
+                    </button>
+                    <div class="menu" id="export-menu">
+                      <div class="menu-item" data-fmt="txt">纯文本 <span class="ext">.txt</span></div>
+                      <div class="menu-item" data-fmt="csv">CSV 表格 <span class="ext">.csv</span></div>
+                      <div class="menu-item" data-fmt="xlsx">Excel 表格 <span class="ext">.xlsx</span></div>
+                      <div class="menu-item" data-fmt="md">Markdown <span class="ext">.md</span></div>
+                      <div class="menu-item" data-fmt="html">HTML 表格 <span class="ext">.html</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tabs">
+                <div class="tab active" data-tab="text">文本</div>
+                <div class="tab" data-tab="tables">
+                  表格 <span class="tab-count" id="tab-tables-count">0</span>
+                </div>
+                <div class="tab" data-tab="vis">可视化</div>
+                <div class="tab" data-tab="lines">行明细</div>
+              </div>
+
+              <div class="detail-body">
+                <div class="panel-section active" data-section="text">
+                  <pre id="text-output">—</pre>
+                </div>
+                <div class="panel-section" data-section="tables">
+                  <div id="tables-host"></div>
+                </div>
+                <div class="panel-section" data-section="vis">
+                  <img id="vis-img" alt="Annotated">
+                </div>
+                <div class="panel-section" data-section="lines">
+                  <table id="lines-table">
+                    <thead><tr><th>#</th><th>文字</th><th>坐标 (x0, y0, x1, y1)</th></tr></thead>
+                    <tbody id="lines-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="stats-bar">
+                <div class="stat-cell"><span class="label">检测</span><span class="value" id="stat-det">—</span><span>ms</span></div>
+                <div class="stat-cell"><span class="label">识别</span><span class="value" id="stat-rec">—</span><span>ms</span></div>
+                <div class="stat-cell"><span class="label">总耗时</span><span class="value" id="stat-total">—</span><span>ms</span></div>
+                <div class="stat-cell"><span class="label">文字框</span><span class="value" id="stat-boxes">—</span></div>
+                <div class="stat-cell"><span class="label">表格</span><span class="value" id="stat-tables">—</span></div>
+                <div class="stat-cell"><span class="label">引擎</span><span class="value" id="stat-backend">—</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── HISTORY ────────────────────────────────────────────── -->
+      <section class="view history-view" data-view="history" style="flex-direction:column">
+        <div class="history-toolbar">
+          <input class="search-input" type="text" id="history-search"
+                 placeholder="按文件名或识别内容搜索...">
+          <div style="flex:1"></div>
+          <span style="font-size:11.5px;color:var(--text-muted)" id="history-total">0 条记录</span>
+          <button class="btn danger" id="btn-clear-history">
+            <svg class="icon"><use href="#i-trash"/></svg>清空全部
+          </button>
+        </div>
+        <div class="history-grid" id="history-grid">
+          <div class="history-empty">还没有历史记录。运行一次识别即可开始建立本地档案。</div>
+        </div>
+      </section>
+
+      <!-- ── SETTINGS ───────────────────────────────────────────── -->
+      <section class="view settings-view" data-view="settings" style="flex-direction:column">
+        <div class="settings-container">
+
+          <div class="settings-section">
+            <h3>推理引擎</h3>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">模型规格</div>
+                <div class="setting-desc">Tiny 最轻，Small 更稳，Medium 精度优先。</div>
+              </div>
+              <div class="setting-control">
+                <select id="cfg-model-variant">
+                  <option value="tiny">Tiny · 1.5M · 浏览器/极轻端侧</option>
+                  <option value="small">Small · 7.7M · 移动端/本地应用</option>
+                  <option value="medium">Medium · 34.5M · 服务器/高精度本地</option>
+                </select>
+              </div>
+              <div></div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">执行提供者</div>
+                <div class="setting-desc">CoreML 使用 Apple Silicon 的神经引擎加速。</div>
+              </div>
+              <div class="setting-control">
+                <select id="cfg-provider">
+                  <option value="auto">自动 (优先 CoreML)</option>
+                  <option value="coreml">CoreML — Apple Silicon</option>
+                  <option value="cpu">仅 CPU</option>
+                </select>
+              </div>
+              <div></div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">线程数</div>
+                <div class="setting-desc">CPU 并行线程数，并非越多越好。</div>
+              </div>
+              <div class="setting-control"><input type="range" id="cfg-threads" min="1" max="16" step="1"></div>
+              <div class="setting-value" id="val-threads">4</div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>检测参数</h3>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">二值化阈值</div>
+                <div class="setting-desc">越低召回越多，可能噪声变多。</div>
+              </div>
+              <div class="setting-control"><input type="range" id="cfg-det-thresh" min="0.05" max="0.5" step="0.01"></div>
+              <div class="setting-value" id="val-det-thresh">0.20</div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">框置信度</div>
+                <div class="setting-desc">低于此置信度的检测框会被丢弃。</div>
+              </div>
+              <div class="setting-control"><input type="range" id="cfg-box-thresh" min="0.1" max="0.8" step="0.01"></div>
+              <div class="setting-value" id="val-box-thresh">0.40</div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">外扩比例</div>
+                <div class="setting-desc">检测框外扩系数，越高裁剪范围越大。</div>
+              </div>
+              <div class="setting-control"><input type="range" id="cfg-unclip" min="1.0" max="2.5" step="0.05"></div>
+              <div class="setting-value" id="val-unclip">1.40</div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">最大边长 (像素)</div>
+                <div class="setting-desc">图片最长边超过此值会等比缩小后再检测。</div>
+              </div>
+              <div class="setting-control"><input type="range" id="cfg-max-edge" min="480" max="2048" step="32"></div>
+              <div class="setting-value" id="val-max-edge">960</div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>数据与存储</h3>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">保存历史记录</div>
+                <div class="setting-desc">识别结果写入本地数据库。关闭则仅保留在内存中。</div>
+              </div>
+              <div class="setting-control"><div class="toggle" id="cfg-save-history"></div></div>
+              <div></div>
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button class="btn ghost" id="btn-reset-settings">恢复默认</button>
+            <button class="btn primary" id="btn-save-settings">保存设置</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ABOUT ──────────────────────────────────────────────── -->
+      <section class="view about-view" data-view="about" style="flex-direction:column">
+        <div class="about-container">
+          <h2>这是什么</h2>
+          <p>
+            PP-OCRv6 本地工作台，一款完全离线的桌面级 OCR 工具，基于百度开源的
+            PP-OCRv6 Tiny 模型 (1.5 MB) 与 ONNX Runtime。
+            支持中英文文字识别、表格重建、批量队列、历史档案。
+            数据全程不出本机。
+          </p>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <h4>极小安装体积</h4>
+              <p>~80 MB 包含全部依赖与模型权重，无需安装 PaddlePaddle 框架。</p>
+            </div>
+            <div class="feature-card">
+              <h4>硬件加速</h4>
+              <p>Apple Silicon 自动启用 CoreML / 神经引擎，单页 OCR 通常 200-500 ms。</p>
+            </div>
+            <div class="feature-card">
+              <h4>表格重建</h4>
+              <p>基于几何聚类自动还原表格结构，支持 CSV / Markdown / HTML 多格式导出。</p>
+            </div>
+            <div class="feature-card">
+              <h4>隐私优先</h4>
+              <p>所有图片和文字仅在 <code>127.0.0.1</code> 流转，零云端调用，零遥测。</p>
+            </div>
+          </div>
+
+          <h2>与官方方案对比</h2>
+          <p>
+            百度 2026 年 6 月 11 日发布 PP-OCRv6。官方目前没有桌面级 UI，分发渠道如下：
+          </p>
+
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>官方 Python SDK</th>
+                <th>官方 HF Demo</th>
+                <th>本工作台</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>安装体积</td>
+                <td>~1.2 GB (含 Paddle)</td>
+                <td>无 (云端托管)</td>
+                <td><span class="tag tag-yes">~80 MB</span></td>
+              </tr>
+              <tr>
+                <td>桌面 UI</td>
+                <td><span class="tag tag-no">仅 CLI / Python</span></td>
+                <td><span class="tag tag-meh">网页, 单张</span></td>
+                <td><span class="tag tag-yes">完整 GUI</span></td>
+              </tr>
+              <tr>
+                <td>批量队列</td>
+                <td>需自行编写脚本</td>
+                <td><span class="tag tag-no">不支持</span></td>
+                <td><span class="tag tag-yes">内置</span></td>
+              </tr>
+              <tr>
+                <td>历史档案</td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-yes">SQLite 可搜索</span></td>
+              </tr>
+              <tr>
+                <td>参数调优</td>
+                <td>需改代码传参</td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-yes">UI 滑杆, 热重载</span></td>
+              </tr>
+              <tr>
+                <td>表格识别</td>
+                <td>需切换 PP-Structure</td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-yes">几何聚类内置</span></td>
+              </tr>
+              <tr>
+                <td>表格导出</td>
+                <td>需手写脚本</td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-yes">CSV/MD/HTML</span></td>
+              </tr>
+              <tr>
+                <td>隐私</td>
+                <td><span class="tag tag-yes">本地</span></td>
+                <td><span class="tag tag-no">上传至 HF 云</span></td>
+                <td><span class="tag tag-yes">仅本机</span></td>
+              </tr>
+              <tr>
+                <td>硬件加速</td>
+                <td>Paddle MKL / CUDA</td>
+                <td>服务端</td>
+                <td><span class="tag tag-yes">CoreML / ANE</span></td>
+              </tr>
+              <tr>
+                <td>HTTP API 集成</td>
+                <td>需自行实现</td>
+                <td><span class="tag tag-no">无</span></td>
+                <td><span class="tag tag-yes">FastAPI <code>/ocr</code></span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2>官方仍领先的地方</h2>
+          <p>
+            坦率说明，官方 PaddleOCR 完整流水线支持 Medium 模型 (34.5 MB)、版面分析、
+            完整的表格结构识别 (PP-Structure / SLANet)、公式识别等能力。
+            本工作台目前只内置 Tiny 模型 + 几何聚类表格重建，
+            适合纯文本与规则表格场景。复杂多列文档建议改用 PaddleOCR-VL 或 GLM-OCR。
+          </p>
+
+          <h2>模型版权</h2>
+          <p>
+            PP-OCRv6 模型权重由百度发布，Apache 2.0 协议。
+            ONNX 版本托管在 <code>huggingface.co/PaddlePaddle</code>。
+            源码: <code>github.com/PaddlePaddle/PaddleOCR</code>。
+          </p>
+
+          <h2>本地接口</h2>
+          <p>所有接口均在 <code>http://127.0.0.1:8765</code>：</p>
+          <p>
+            <code>GET /info</code> · 引擎与配置信息<br>
+            <code>POST /ocr</code> · 上传图片返回识别结果 + 表格<br>
+            <code>GET /history</code> · 历史记录分页<br>
+            <code>GET /history/{id}/export?fmt=csv|xlsx|md|html|txt</code> · 导出指定记录<br>
+            <code>PUT /settings</code> · 更新参数 (自动重载模型)
+          </p>
+          <p>详细安装与集成示例见 <a href="/tutorial" target="_blank" style="color:var(--accent)">部署教程</a>。</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- History detail modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="dh-name" id="m-name">—</div>
+      <div class="dh-meta" id="m-meta">—</div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn ghost" id="m-copy"><svg class="icon"><use href="#i-copy"/></svg>复制文本</button>
+        <div class="menu-wrap">
+          <button class="btn ghost" id="m-export"><svg class="icon"><use href="#i-download"/></svg>导出
+            <svg class="icon"><use href="#i-chevron"/></svg>
+          </button>
+          <div class="menu" id="m-export-menu">
+            <div class="menu-item" data-fmt="txt">纯文本 <span class="ext">.txt</span></div>
+            <div class="menu-item" data-fmt="csv">CSV 表格 <span class="ext">.csv</span></div>
+            <div class="menu-item" data-fmt="xlsx">Excel 表格 <span class="ext">.xlsx</span></div>
+            <div class="menu-item" data-fmt="md">Markdown <span class="ext">.md</span></div>
+            <div class="menu-item" data-fmt="html">HTML 表格 <span class="ext">.html</span></div>
+          </div>
+        </div>
+        <button class="btn danger" id="m-delete"><svg class="icon"><use href="#i-trash"/></svg>删除</button>
+        <button class="btn ghost" id="m-close"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <img id="m-img" style="max-width:100%;border-radius:6px;margin-bottom:16px;display:none">
+      <div id="m-tables"></div>
+      <pre id="m-text" style="font-family:var(--font-mono);font-size:12.5px;line-height:1.85;white-space:pre-wrap;color:var(--text);background:var(--surface-2);padding:14px 18px;border-radius:6px"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+const state = {
+  queue:    [],
+  selected: null,
+  running:  false,
+  config:   null,
+  current:  null,        // currently displayed result for export
+};
+
+const $  = (s, root=document) => root.querySelector(s);
+const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+
+function toast(msg, ms=2000){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove("show"), ms);
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function formatSize(bytes){
+  if(bytes < 1024) return bytes + " B";
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(0) + " KB";
+  return (bytes/1024/1024).toFixed(1) + " MB";
+}
+function formatTime(ts){
+  const d = new Date(ts*1000);
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"});
+  if (isToday) return time;
+  return d.toLocaleDateString("zh-CN") + " " + time;
+}
+function escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIEW SWITCH
+// ═══════════════════════════════════════════════════════════════════════════
+function setView(name){
+  $$(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view===name));
+  $$(".view").forEach(el => el.classList.toggle("active", el.dataset.view===name));
+  const titles = {
+    recognize: ["识别", "上传图片，本地识别文字与表格"],
+    history:   ["历史记录", "本地存储的识别档案"],
+    settings:  ["参数设置", "调整推理参数"],
+    about:     ["关于", "项目信息与官方对比"],
+  };
+  $("#tb-title").textContent = titles[name][0];
+  $("#tb-sub").textContent   = titles[name][1];
+  if (name === "history") loadHistory();
+  if (name === "settings") refreshSettingsUI();
+}
+$$(".nav-item").forEach(el => el.addEventListener("click", () => setView(el.dataset.view)));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BACKEND
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchInfo(){
+  try {
+    const r = await fetch("/info");
+    const d = await r.json();
+    state.config = d.config;
+    $("#backend-label").textContent = d.backend.replace("ExecutionProvider", "");
+    $("#status-dot").className = "status-dot";
+  } catch (e) {
+    $("#backend-label").textContent = "离线";
+    $("#status-dot").className = "status-dot danger";
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUEUE
+// ═══════════════════════════════════════════════════════════════════════════
+function addFiles(fileList){
+  for (const file of fileList) {
+    if (!file.type.startsWith("image/")) continue;
+    state.queue.push({
+      id: uid(), file,
+      name: file.name || "粘贴图片",
+      size: file.size,
+      status: "pending",
+      result: null, error: null, progress: 0,
+    });
+  }
+  renderQueue();
+}
+
+function renderQueue(){
+  const list = $("#queue-list");
+  const count = state.queue.length;
+  $("#queue-count").textContent = count + " 项";
+  $("#nav-badge-queue").textContent = count;
+  $("#btn-run-all").disabled = count === 0 || state.running;
+  $("#btn-clear-queue").disabled = count === 0;
+
+  if (count === 0) {
+    list.innerHTML = `<div class="queue-empty">拖入或选择图片以开始。<br>多张图片将按顺序处理。</div>`;
+    return;
+  }
+
+  const statusText = { pending:"等待中", processing:"识别中", done:"完成", error:"失败" };
+  list.innerHTML = state.queue.map(it => {
+    const thumbUrl = it.thumb || (it.file ? URL.createObjectURL(it.file) : "");
+    const cls = it.id === state.selected ? "queue-item selected" : "queue-item";
+    const meta = it.status === "done"
+      ? `${it.result.n_boxes} 框 · ${it.result.total_ms} ms${it.result.n_tables ? ` · ${it.result.n_tables} 表格` : ""}`
+      : it.status === "error" ? it.error : formatSize(it.size);
+    const progress = it.status === "processing"
+      ? `<div class="qi-progress"><div class="qi-progress-bar" style="width:${it.progress}%"></div></div>` : "";
+    return `
+      <div class="${cls}" data-id="${it.id}">
+        <div class="qi-thumb"><img src="${thumbUrl}" alt=""></div>
+        <div class="qi-body">
+          <div class="qi-name">${escHtml(it.name)}</div>
+          <div class="qi-meta">
+            <span>${escHtml(meta)}</span>
+            <span class="qi-status s-${it.status}">${statusText[it.status]}</span>
+          </div>
+          ${progress}
+        </div>
+      </div>`;
+  }).join("");
+  $$("#queue-list .queue-item").forEach(el => {
+    el.addEventListener("click", () => selectQueueItem(el.dataset.id));
+  });
+}
+
+function selectQueueItem(id){
+  state.selected = id;
+  const it = state.queue.find(x => x.id === id);
+  renderQueue();
+  if (it && it.status === "done") renderDetail(it.result, it.name);
+  else showDetailEmpty();
+}
+
+function clearQueue(){
+  state.queue = []; state.selected = null;
+  renderQueue(); showDetailEmpty();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR
+// ═══════════════════════════════════════════════════════════════════════════
+async function processItem(item){
+  item.status = "processing"; item.progress = 10;
+  renderQueue();
+  const fd = new FormData(); fd.append("file", item.file);
+  const ticker = setInterval(() => {
+    if (item.progress < 80) item.progress += 5;
+    renderQueue();
+  }, 200);
+  try {
+    const r = await fetch("/ocr", { method:"POST", body: fd });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({detail:"识别失败"}));
+      throw new Error(err.detail || "请求失败");
+    }
+    const data = await r.json();
+    item.result = data; item.status = "done"; item.progress = 100;
+    if (state.selected === item.id) renderDetail(data, item.name);
+  } catch (e) {
+    item.status = "error"; item.error = e.message;
+  } finally {
+    clearInterval(ticker);
+    renderQueue();
+  }
+}
+
+async function runQueue(){
+  if (state.running) return;
+  state.running = true;
+  $("#btn-run-all").disabled = true;
+  for (const item of state.queue) {
+    if (item.status === "pending") {
+      if (!state.selected) selectQueueItem(item.id);
+      await processItem(item);
+    }
+  }
+  state.running = false;
+  $("#btn-run-all").disabled = state.queue.length === 0;
+  fetchHistoryCount();
+  toast("队列全部处理完成");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DETAIL
+// ═══════════════════════════════════════════════════════════════════════════
+function showDetailEmpty(){
+  $("#detail-empty").style.display = "flex";
+  $("#detail-content").style.display = "none";
+  state.current = null;
+}
+
+function renderTables(tables, host){
+  if (!tables || tables.length === 0) {
+    host.innerHTML = `<div class="tables-empty">
+      <div>未检测到结构化表格</div>
+      <div class="hint">本工作台使用几何聚类还原表格 (≥3 行且列数稳定才会识别)。
+      如果是单栏文本或不规则版式，这里会保持空白。</div>
+    </div>`;
+    return;
+  }
+  const notice = `<div class="notice-strip">
+    检测到 ${tables.length} 个候选表格，由文本框位置几何聚类重建。
+    遇到歪斜、合并单元格或多栏混排时可能不准，请以「可视化」标注图为准核对。
+  </div>`;
+  host.innerHTML = notice + tables.map((t, i) => {
+    const head = t.rows[0] || [];
+    const body = t.rows.slice(1);
+    const headHtml = "<tr>" + head.map(c => `<th>${escHtml(c)}</th>`).join("") + "</tr>";
+    const bodyHtml = body.map(row => {
+      const padded = row.concat(Array(Math.max(0, head.length - row.length)).fill(""));
+      return "<tr>" + padded.slice(0, head.length).map(c => `<td>${escHtml(c)}</td>`).join("") + "</tr>";
+    }).join("");
+    return `
+      <div class="table-card">
+        <div class="table-card-head">
+          <span class="tc-title">表格 ${i+1}</span>
+          <span class="tc-shape">${t.n_rows} 行 × ${t.n_cols} 列</span>
+          <div class="tc-actions">
+            <button class="btn ghost" data-tbl-export="${i}" data-fmt="csv">导出 CSV</button>
+            <button class="btn ghost" data-tbl-export="${i}" data-fmt="xlsx">导出 XLSX</button>
+            <button class="btn ghost" data-tbl-export="${i}" data-fmt="md">导出 MD</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="recon-table">
+            <thead>${headHtml}</thead>
+            <tbody>${bodyHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join("");
+
+  host.querySelectorAll("[data-tbl-export]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.tblExport);
+      const fmt = btn.dataset.fmt;
+      exportSingleTable(tables[idx], idx, fmt);
+    });
+  });
+}
+
+function renderDetail(data, name){
+  $("#detail-empty").style.display = "none";
+  $("#detail-content").style.display = "flex";
+
+  state.current = { ...data, _name: name };
+  $("#dh-name").textContent = name;
+  $("#dh-meta").textContent = `${data.n_boxes} 框 · 检测 ${data.det_ms}ms · 识别 ${data.rec_ms}ms`
+    + (data.n_tables ? ` · ${data.n_tables} 表格` : "");
+
+  $("#text-output").textContent = data.text || "未识别到文字";
+  $("#vis-img").src = data.annotated || "";
+  $("#tab-tables-count").textContent = (data.tables || []).length;
+
+  renderTables(data.tables || [], $("#tables-host"));
+
+  const tbody = $("#lines-tbody");
+  tbody.innerHTML = (data.lines || []).map((l, i) => `
+    <tr><td class="mono">${i+1}</td>
+      <td>${escHtml(l.text)}</td>
+      <td class="mono">${l.box.map(v => Math.round(v)).join(", ")}</td></tr>`).join("");
+
+  $("#stat-det").textContent     = data.det_ms;
+  $("#stat-rec").textContent     = data.rec_ms;
+  $("#stat-total").textContent   = data.total_ms;
+  $("#stat-boxes").textContent   = data.n_boxes;
+  $("#stat-tables").textContent  = data.n_tables || 0;
+  $("#stat-backend").textContent = (data.backend || "").replace("ExecutionProvider", "");
+}
+
+// Tabs
+$$(".tab").forEach(el => {
+  el.addEventListener("click", () => {
+    $$(".tab").forEach(t => t.classList.toggle("active", t === el));
+    const sec = el.dataset.tab;
+    $$(".panel-section").forEach(p =>
+      p.classList.toggle("active", p.dataset.section === sec));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+async function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+}
+
+async function exportCurrent(fmt){
+  if (!state.current) return;
+  const payload = {
+    tables:   state.current.tables || [],
+    text:     state.current.text || "",
+    filename: state.current._name || "ocr",
+  };
+  const r = await fetch(`/export?fmt=${fmt}`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload),
+  });
+  const blob = await r.blob();
+  const name = (state.current._name || "ocr").replace(/\.[^.]+$/, "") + "." + fmt;
+  await downloadBlob(blob, name);
+  toast("已导出 " + name);
+}
+
+async function exportSingleTable(table, idx, fmt){
+  const payload = {
+    tables:   [table],
+    text:     "",
+    filename: (state.current ? state.current._name : "table") + `_table${idx+1}`,
+  };
+  const r = await fetch(`/export?fmt=${fmt}`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload),
+  });
+  const blob = await r.blob();
+  const name = `table_${idx+1}.${fmt}`;
+  await downloadBlob(blob, name);
+  toast("已导出表格 " + name);
+}
+
+// Export menu (recognize)
+$("#btn-export").addEventListener("click", e => {
+  e.stopPropagation();
+  $("#export-menu").classList.toggle("show");
+});
+$$("#export-menu .menu-item").forEach(el => {
+  el.addEventListener("click", () => {
+    $("#export-menu").classList.remove("show");
+    exportCurrent(el.dataset.fmt);
+  });
+});
+document.addEventListener("click", e => {
+  if (!e.target.closest(".menu-wrap")) {
+    $$(".menu").forEach(m => m.classList.remove("show"));
+  }
+});
+
+$("#btn-copy-text").addEventListener("click", () => {
+  navigator.clipboard.writeText($("#text-output").textContent)
+    .then(() => toast("已复制到剪贴板"));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadHistory(query=""){
+  const r = await fetch("/history?limit=100" + (query ? "&q=" + encodeURIComponent(query) : ""));
+  const d = await r.json();
+  $("#nav-badge-history").textContent = d.total;
+  $("#history-total").textContent = d.total + " 条记录";
+
+  const grid = $("#history-grid");
+  if (d.items.length === 0) {
+    grid.innerHTML = `<div class="history-empty">${query ? "未找到匹配的记录。" : "还没有历史记录。运行一次识别即可开始建立本地档案。"}</div>`;
+    return;
+  }
+  grid.innerHTML = d.items.map(it => `
+    <div class="hist-card" data-id="${it.id}">
+      <div class="hc-thumb">${it.thumb_path ? `<img src="/${it.thumb_path}" alt="">` : `<span>无缩略图</span>`}</div>
+      <div class="hc-body">
+        <div class="hc-name">${escHtml(it.filename || "未命名")}</div>
+        <div class="hc-meta">
+          <span>${formatTime(it.created_at)}</span>
+          <span>·</span>
+          <span>${it.n_boxes} 框</span>
+          <span>·</span>
+          <span>${it.total_ms}ms</span>
+          ${it.n_tables ? `<span>·</span><span>${it.n_tables} 表格</span>` : ""}
+        </div>
+      </div>
+    </div>`).join("");
+  $$("#history-grid .hist-card").forEach(el =>
+    el.addEventListener("click", () => showHistoryDetail(el.dataset.id)));
+}
+
+async function fetchHistoryCount(){
+  try {
+    const r = await fetch("/history?limit=1");
+    const d = await r.json();
+    $("#nav-badge-history").textContent = d.total;
+  } catch (e) {}
+}
+
+async function showHistoryDetail(id){
+  const r = await fetch("/history/" + id);
+  const d = await r.json();
+  $("#m-name").textContent = d.filename;
+  $("#m-meta").textContent = `${d.n_boxes} 框 · ${d.total_ms}ms · ${formatTime(d.created_at)}`
+    + ((d.tables || []).length ? ` · ${d.tables.length} 表格` : "");
+  if (d.annotated_path) {
+    $("#m-img").src = "/" + d.annotated_path;
+    $("#m-img").style.display = "block";
+  } else {
+    $("#m-img").style.display = "none";
+  }
+  renderTables(d.tables || [], $("#m-tables"));
+  $("#m-text").textContent = d.text || "(空)";
+  $("#modal").classList.add("show");
+  $("#modal").dataset.id = id;
+  $("#m-copy").onclick = () => navigator.clipboard.writeText(d.text).then(()=>toast("已复制"));
+  $("#m-delete").onclick = async () => {
+    if (!confirm("确认删除这条记录？")) return;
+    await fetch("/history/" + id, { method:"DELETE" });
+    $("#modal").classList.remove("show");
+    loadHistory($("#history-search").value);
+  };
+}
+
+$("#m-export").addEventListener("click", e => {
+  e.stopPropagation();
+  $("#m-export-menu").classList.toggle("show");
+});
+$$("#m-export-menu .menu-item").forEach(el => {
+  el.addEventListener("click", async () => {
+    $("#m-export-menu").classList.remove("show");
+    const id = $("#modal").dataset.id;
+    const fmt = el.dataset.fmt;
+    window.open(`/history/${id}/export?fmt=${fmt}`, "_blank");
+  });
+});
+
+$("#m-close").addEventListener("click", () => $("#modal").classList.remove("show"));
+$("#modal").addEventListener("click", e => {
+  if (e.target.id === "modal") $("#modal").classList.remove("show");
+});
+
+$("#history-search").addEventListener("input", e => {
+  clearTimeout(state._searchT);
+  state._searchT = setTimeout(() => loadHistory(e.target.value), 250);
+});
+
+$("#btn-clear-history").addEventListener("click", async () => {
+  if (!confirm("确认清空全部历史？此操作不可恢复。")) return;
+  await fetch("/history/clear", { method:"POST" });
+  loadHistory();
+  toast("历史已清空");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════
+async function refreshSettingsUI(){
+  const r = await fetch("/settings");
+  const cfg = await r.json();
+  state.config = cfg;
+  $("#cfg-model-variant").value = cfg.model_variant || "tiny";
+  $("#cfg-provider").value      = cfg.provider;
+  $("#cfg-threads").value       = cfg.thread_count;
+  $("#cfg-det-thresh").value    = cfg.det_thresh;
+  $("#cfg-box-thresh").value    = cfg.box_thresh;
+  $("#cfg-unclip").value        = cfg.unclip;
+  $("#cfg-max-edge").value      = cfg.max_edge;
+  $("#cfg-save-history").classList.toggle("on", cfg.save_history);
+  $("#val-threads").textContent    = cfg.thread_count;
+  $("#val-det-thresh").textContent = (+cfg.det_thresh).toFixed(2);
+  $("#val-box-thresh").textContent = (+cfg.box_thresh).toFixed(2);
+  $("#val-unclip").textContent     = (+cfg.unclip).toFixed(2);
+  $("#val-max-edge").textContent   = cfg.max_edge;
+}
+
+["det-thresh","box-thresh","unclip"].forEach(k => {
+  $("#cfg-"+k).addEventListener("input", e =>
+    $("#val-"+k).textContent = (+e.target.value).toFixed(2));
+});
+$("#cfg-max-edge").addEventListener("input", e =>
+  $("#val-max-edge").textContent = e.target.value);
+$("#cfg-threads").addEventListener("input", e =>
+  $("#val-threads").textContent = e.target.value);
+$("#cfg-save-history").addEventListener("click", e => e.target.classList.toggle("on"));
+
+$("#btn-save-settings").addEventListener("click", async () => {
+  const payload = {
+    model_variant: $("#cfg-model-variant").value,
+    provider:     $("#cfg-provider").value,
+    thread_count: parseInt($("#cfg-threads").value),
+    det_thresh:   parseFloat($("#cfg-det-thresh").value),
+    box_thresh:   parseFloat($("#cfg-box-thresh").value),
+    unclip:       parseFloat($("#cfg-unclip").value),
+    max_edge:     parseInt($("#cfg-max-edge").value),
+    save_history: $("#cfg-save-history").classList.contains("on"),
+  };
+  const r = await fetch("/settings", {
+    method:"PUT", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json();
+  $("#backend-label").textContent = d.backend.replace("ExecutionProvider", "");
+  toast("设置已保存，引擎已重载");
+});
+
+$("#btn-reset-settings").addEventListener("click", async () => {
+  if (!confirm("恢复全部默认设置？")) return;
+  await fetch("/settings/reset", { method:"POST" });
+  refreshSettingsUI();
+  toast("已恢复默认");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════════════════════════════
+const dz = $("#dropzone");
+const fi = $("#file-input");
+dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("drag"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
+dz.addEventListener("drop", e => {
+  e.preventDefault(); dz.classList.remove("drag");
+  addFiles(e.dataTransfer.files);
+});
+fi.addEventListener("change", () => addFiles(fi.files));
+
+document.addEventListener("paste", e => {
+  const imgs = [...(e.clipboardData?.items||[])]
+    .filter(i => i.type.startsWith("image/")).map(i => i.getAsFile());
+  if (imgs.length) addFiles(imgs);
+});
+
+$("#btn-run-all").addEventListener("click", runQueue);
+$("#btn-clear-queue").addEventListener("click", clearQueue);
+
+// Init
+fetchInfo();
+fetchHistoryCount();
+refreshSettingsUI();
+</script>
+</body>
+</html>

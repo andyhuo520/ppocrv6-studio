@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>PP-OCRv6 Tiny · 浏览器端实测 (onnxruntime-web)</title>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;background:#0f1115;color:#e6e6e6}
+  h1{font-size:18px} .muted{color:#9aa0a6;font-size:13px}
+  button{background:#6c5ce7;color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;margin:4px}
+  button:disabled{opacity:.4;cursor:default}
+  #status{margin:10px 0;font-size:13px;white-space:pre-wrap;max-height:160px;overflow:auto}
+  table{border-collapse:collapse;width:100%;font-size:12px;margin-top:10px}
+  td,th{border:1px solid #2a2f3a;padding:5px 7px;text-align:left;vertical-align:top}
+  th{background:#1a1e27} .ms{color:#00d28a;font-weight:600;white-space:nowrap}
+  .txt{max-width:620px;max-height:90px;overflow:auto;font-size:11px;color:#cfd3da;white-space:pre-wrap}
+  #summary{margin-top:12px;font-size:14px;color:#ffd479}
+</style>
+</head>
+<body>
+<h1>PP-OCRv6 Tiny (1.5M det + rec) · 浏览器端真实推理实测</h1>
+<div class="muted">引擎：onnxruntime-web（纯 JS 后处理）· 全程在本浏览器内运行，图像不出本地</div>
+<div>
+  <button id="loadBtn">1. 加载模型 + 引擎</button>
+  <button id="runBtn" disabled>2. 跑全部 18 张图</button>
+  <button id="dlBtn" disabled>3. 导出结果 JSON</button>
+  后端: <span id="ep" class="muted">-</span>
+</div>
+<div id="status">等待加载…</div>
+<div id="summary"></div>
+<table id="tbl"><thead><tr><th>#</th><th>图片</th><th>det(ms)</th><th>rec(ms)</th><th>端到端(ms)</th><th>框数</th><th>识别文本(截断)</th></tr></thead><tbody></tbody></table>
+
+<script>
+const IMG_DIR="OmniDocBench/demo_data/omnidocbench_demo/images/";
+const DET_URL="ppocrv6_onnx/det/inference.onnx";
+const REC_URL="ppocrv6_onnx/rec/inference.onnx";
+const DICT_URL="ppocrv6_onnx/rec/char_dict.json";
+const statusEl=document.getElementById('status');
+const log=(m)=>{statusEl.textContent+="\n"+m;statusEl.scrollTop=statusEl.scrollHeight;console.log(m);};
+let detSess,recSess,charList,results=[];
+
+document.getElementById('loadBtn').onclick=async()=>{
+  try{
+    statusEl.textContent="加载中…";
+    ort.env.wasm.numThreads=1; ort.env.wasm.simd=true;
+    let ep=['wasm'];
+    try{ if('gpu' in navigator){const a=await navigator.gpu.requestAdapter();if(a)ep=['webgpu','wasm'];} }catch(e){}
+    log("尝试后端: "+ep.join(','));
+    detSess=await ort.InferenceSession.create(DET_URL,{executionProviders:ep});
+    recSess=await ort.InferenceSession.create(REC_URL,{executionProviders:ep});
+    document.getElementById('ep').textContent=ep[0];
+    log("det in="+detSess.inputNames+" out="+detSess.outputNames);
+    log("rec in="+recSess.inputNames+" out="+recSess.outputNames);
+    const dict=await(await fetch(DICT_URL)).json();
+    charList=[''].concat(dict).concat([' ']); // [blank]+dict+[space], 与输出维度6906一致
+    log("字典: "+dict.length+" 字, CTC类别="+charList.length);
+    document.getElementById('runBtn').disabled=false;
+    log("✅ 全部就绪，可以开跑");
+  }catch(e){log("❌ 加载失败: "+e.message);throw e;}
+};
+
+function loadImage(url){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin="anonymous";i.onload=()=>res(i);i.onerror=()=>rej(new Error("img load fail"));i.src=url;});}
+
+// DET 预处理：长边≤960 且 32 倍数，按通道归一化
+function detPreprocess(img){
+  const lim=960,w=img.naturalWidth,h=img.naturalHeight;
+  let r=Math.min(1,lim/Math.max(w,h));
+  let nw=Math.max(32,Math.round(w*r/32)*32),nh=Math.max(32,Math.round(h*r/32)*32);
+  const c=document.createElement('canvas');c.width=nw;c.height=nh;
+  c.getContext('2d').drawImage(img,0,0,nw,nh);
+  const d=c.getContext('2d').getImageData(0,0,nw,nh).data;
+  const mean=[0.485,0.456,0.406],std=[0.229,0.224,0.225],f=new Float32Array(3*nh*nw),A=nh*nw;
+  for(let y=0;y<nh;y++)for(let x=0;x<nw;x++){const p=(y*nw+x)*4,i=y*nw+x;
+    f[i]=(d[p]/255-mean[0])/std[0];
+    f[A+i]=(d[p+1]/255-mean[1])/std[1];
+    f[2*A+i]=(d[p+2]/255-mean[2])/std[2];
+  }
+  return {tensor:new ort.Tensor('float32',f,[1,3,nh,nw]),nw,nh};
+}
+
+// DB 后处理（纯JS）：二值化→连通域→外接框→过滤→unclip→返回原图坐标bbox
+function dbBoxes(prob,ow,oh,sx,sy){
+  const thresh=0.2,boxThresh=0.4,unclip=1.4;
+  const bin=new Uint8Array(ow*oh);
+  for(let i=0;i<ow*oh;i++) bin[i]=prob[i]>thresh?1:0;
+  const lab=new Int32Array(ow*oh).fill(0); let cur=0; const boxes=[];
+  const stack=new Int32Array(ow*oh);
+  for(let s=0;s<ow*oh;s++){
+    if(bin[s]!==1||lab[s]!==0)continue;
+    cur++; let sp=0; stack[sp++]=s; lab[s]=cur;
+    let minx=ow,miny=oh,maxx=0,maxy=0,sum=0,cnt=0;
+    while(sp>0){const p=stack[--sp];const x=p%ow,y=(p/ow)|0;
+      if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+      sum+=prob[p];cnt++;
+      const nb=[p-1,p+1,p-ow,p+ow];
+      if(x>0&&bin[p-1]&&!lab[p-1]){lab[p-1]=cur;stack[sp++]=p-1;}
+      if(x<ow-1&&bin[p+1]&&!lab[p+1]){lab[p+1]=cur;stack[sp++]=p+1;}
+      if(y>0&&bin[p-ow]&&!lab[p-ow]){lab[p-ow]=cur;stack[sp++]=p-ow;}
+      if(y<oh-1&&bin[p+ow]&&!lab[p+ow]){lab[p+ow]=cur;stack[sp++]=p+ow;}
+    }
+    const bw=maxx-minx+1,bh=maxy-miny+1;
+    if(Math.min(bw,bh)<3)continue;
+    if(sum/cnt<boxThresh)continue;
+    // unclip: 外扩 d ≈ area*ratio/perimeter
+    const area=bw*bh,peri=2*(bw+bh),d=area*unclip/peri;
+    let x0=minx-d,y0=miny-d,x1=maxx+d,y1=maxy+d;
+    boxes.push({x0:Math.max(0,x0*sx),y0:Math.max(0,y0*sy),x1:x1*sx,y1:y1*sy,cy:(miny+maxy)/2});
+  }
+  // 阅读顺序：按 y 再 x
+  boxes.sort((a,b)=> (Math.abs(a.cy-b.cy)>10)? a.cy-b.cy : a.x0-b.x0);
+  return boxes;
+}
+
+// 裁剪（轴对齐）→ rec 预处理 48 高
+function recPreprocess(img,b){
+  const W=Math.max(4,Math.round(b.x1-b.x0)),H0=Math.max(4,Math.round(b.y1-b.y0));
+  const H=48; let nw=Math.max(8,Math.round(W*H/H0)); nw=Math.min(nw,2400);
+  const c=document.createElement('canvas');c.width=nw;c.height=H;
+  c.getContext('2d').drawImage(img,b.x0,b.y0,W,H0,0,0,nw,H);
+  const d=c.getContext('2d').getImageData(0,0,nw,H).data,f=new Float32Array(3*H*nw),A=H*nw;
+  for(let y=0;y<H;y++)for(let x=0;x<nw;x++){const p=(y*nw+x)*4,i=y*nw+x;
+    f[i]=(d[p]/255-0.5)/0.5; f[A+i]=(d[p+1]/255-0.5)/0.5; f[2*A+i]=(d[p+2]/255-0.5)/0.5;
+  }
+  return new ort.Tensor('float32',f,[1,3,H,nw]);
+}
+
+function ctcDecode(data,T,C){let prev=-1,out="";for(let t=0;t<T;t++){let mx=-1e9,idx=0,base=t*C;
+  for(let c=0;c<C;c++){const v=data[base+c];if(v>mx){mx=v;idx=c;}}
+  if(idx!==0&&idx!==prev)out+=charList[idx]||"";prev=idx;}return out;}
+
+async function processImage(name){
+  const img=await loadImage(IMG_DIR+name);
+  const t0=performance.now();
+  const pre=detPreprocess(img);
+  const detOut=await detSess.run({[detSess.inputNames[0]]:pre.tensor});
+  const o=detOut[detSess.outputNames[0]],prob=o.data,oh=o.dims[2],ow=o.dims[3];
+  const t1=performance.now();
+  const boxes=dbBoxes(prob,ow,oh,img.naturalWidth/ow,img.naturalHeight/oh);
+  const tr0=performance.now(),texts=[];
+  for(const b of boxes){
+    try{const rt=recPreprocess(img,b);
+      const ro=await recSess.run({[recSess.inputNames[0]]:rt});
+      const out=ro[recSess.outputNames[0]],T=out.dims[1],C=out.dims[2];
+      const txt=ctcDecode(out.data,T,C); if(txt.trim())texts.push(txt);
+    }catch(e){}
+  }
+  const t2=performance.now();
+  return {name,detMs:+(t1-t0).toFixed(1),recMs:+(t2-tr0).toFixed(1),totalMs:+(t2-t0).toFixed(1),nBoxes:boxes.length,text:texts.join("\n")};
+}
+
+document.getElementById('runBtn').onclick=async()=>{
+  document.getElementById('runBtn').disabled=true;
+  const imgs=await(await fetch('web_images.json')).json();
+  const tb=document.querySelector('#tbl tbody');tb.innerHTML="";results=[];
+  log("开始处理 "+imgs.length+" 张 (首张预热)…");
+  for(let i=0;i<imgs.length;i++){
+    log(`(${i+1}/${imgs.length}) ${imgs[i]}`);
+    let r;try{r=await processImage(imgs[i]);}catch(e){r={name:imgs[i],detMs:-1,recMs:-1,totalMs:-1,nBoxes:0,text:"ERR:"+e.message};}
+    results.push(r);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}${i===0?'(预热)':''}</td><td>${r.name.slice(0,26)}…</td><td class=ms>${r.detMs}</td><td class=ms>${r.recMs}</td><td class=ms>${r.totalMs}</td><td>${r.nBoxes}</td><td class=txt>${(r.text||'').replace(/</g,'&lt;').slice(0,400)}</td>`;
+    tb.appendChild(tr);
+  }
+  const valid=results.slice(1).filter(r=>r.totalMs>0),tot=valid.map(r=>r.totalMs);
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length,med=a=>{const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+  document.getElementById('summary').textContent=
+    `后端 ${document.getElementById('ep').textContent} · 有效 ${valid.length} 张 · 端到端 平均 ${avg(tot).toFixed(1)}ms / 中位 ${med(tot).toFixed(1)}ms / 最快 ${Math.min(...tot).toFixed(1)}ms / 最慢 ${Math.max(...tot).toFixed(1)}ms`;
+  document.getElementById('dlBtn').disabled=false;log("✅ 完成");
+};
+document.getElementById('dlBtn').onclick=()=>{
+  const meta={engine:'onnxruntime-web',backend:document.getElementById('ep').textContent,model:'PP-OCRv6_tiny',ua:navigator.userAgent,hw:navigator.hardwareConcurrency,ts:new Date().toISOString(),results};
+  const b=new Blob([JSON.stringify(meta,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ppocrv6_browser_results.json';a.click();
+};
+</script>
+</body>
+</html>
